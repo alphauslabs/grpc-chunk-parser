@@ -13,6 +13,7 @@ export const parseGrpcData = async (
         limiter?: number; //limit/page size before data is being returned
         concatData?: boolean; //returns all data from start until the limit
         objectPrefix?: string; // string for returning the object on a specific object path
+        showDebug?: boolean; // show debug logs output
     },
     onChunkReceive?: (data: any) => void,
     onFinish?: (data: any) => void,
@@ -21,7 +22,8 @@ export const parseGrpcData = async (
     try {
         console.time('parseGrpcData');
         const { url, method, headers } = requestObject;
-        const { limiter, concatData, objectPrefix } = dataObject || {};
+        const { limiter = 1, concatData = false, showDebug = false } = dataObject || {};
+        let objectPrefix = dataObject.objectPrefix || 'result';
         const allData: DynamicObject[] = [];
         const limiterData: DynamicObject[] = [];
         const hasLimiter = limiter && limiter > 0;
@@ -41,13 +43,22 @@ export const parseGrpcData = async (
         const reader = res?.body ? res.body.getReader() : undefined;
         const decoder = new TextDecoder('utf8');
 
+        if (showDebug) {
+            console.log("objectPrefix: ", objectPrefix);
+        }
+
         let result = '';
-        const startObject = '{"result":';
-        const endObjRegex = /}}\n+/g;
+        const startObject = `{"${objectPrefix}":`;
+        // streaming data will like: 
+        // 1 - {"result":{...
+        // 2 - ...}}\n
+        // 3 - {"result":{...}}
+        const endObjRegex = /}}\n+/g; 
 
         while (true && reader) {
             const parsedChunkData: DynamicObject[] = [];
             const { value, done } = await reader.read();
+          
             if (done) break;
             const chunk: string = decoder.decode(value);
             result += chunk;
@@ -60,9 +71,11 @@ export const parseGrpcData = async (
                 const restOfStr = result.substring(endIndex + 2);
                 try {
                     const parsedChunk = JSON.parse(jsonStr);
+
                     const pushedData = objectPrefix
-                        ? parsedChunk?.objectPrefix
+                        ? parsedChunk ? parsedChunk[objectPrefix] : undefined
                         : parsedChunk;
+
                     allData.push(pushedData);
                     parsedChunkData.push(pushedData);
                     if (hasLimiter) {
@@ -84,6 +97,33 @@ export const parseGrpcData = async (
                     result = restOfStr;
                     count++;
                 }
+            } else {
+                // try to parse the result, this case handle one 1 result returned
+                try {
+                    const parsedChunk = JSON.parse(result);
+
+                    const pushedData = objectPrefix
+                        ? parsedChunk ? parsedChunk[objectPrefix] : undefined
+                        : parsedChunk;
+                    allData.push(pushedData);
+                    parsedChunkData.push(pushedData);
+                    if (hasLimiter) {
+                        limiterData.push(pushedData);
+                        if (limiterData.length === limiter) {
+                            const newLimiterData = [...limiterData];
+                            limiterData.splice(0, limiter);
+                            const returnedData = concatData
+                                ? allData
+                                : newLimiterData;
+                            onChunkReceive(returnedData);
+                        }
+                    }
+                    count++;
+                } catch (_err) { // keep error in here cause object not completed
+                    // onError(_err);
+                    // console.log('Failed to parse json chunk');
+                    // failedCount++;
+                }
             }
         }
 
@@ -97,8 +137,10 @@ export const parseGrpcData = async (
         }
 
         if (onFinish) {
-            console.log("count: ", count);
-            console.log("failed count: ", failedCount);
+            if (showDebug) {
+                console.log("count: ", count);
+                console.log("failed count: ", failedCount);
+            }
             console.timeEnd('parseGrpcData');
             onFinish(allData);
         }
