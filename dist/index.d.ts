@@ -10,4 +10,5 @@ export declare const parseGrpcData: (requestObject: {
     limiter?: number;
     concatData?: boolean;
     objectPrefix?: string;
+    showDebug?: boolean;
 }, onChunkReceive?: (data: any) => void, onFinish?: (data: any) => void, onError?: (e: any) => void) => Promise<void>;

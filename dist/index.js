@@ -45,14 +45,14 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseGrpcData = void 0;
 exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onFinish, onError) { return __awaiter(void 0, void 0, void 0, function () {
-    var url, method, headers, _a, limiter, concatData, objectPrefix, allData, limiterData, hasLimiter, fetchProps, res, count, failedCount, reader, decoder, result, startObject, endObjRegex, parsedChunkData, _b, value, done, chunk, startIndex, endIndex, jsonStr, restOfStr, parsedChunk, pushedData, newLimiterData, returnedData, returnedData, error_1;
-    return __generator(this, function (_c) {
-        switch (_c.label) {
+    var url, method, headers, _a, _b, limiter, _c, concatData, _d, objectPrefix, _e, showDebug, allData, limiterData, hasLimiter, fetchProps, res, count, failedCount, reader, decoder, result, startObject, endObjRegex, parsedChunkData, _f, value, done, chunk, startIndex, endIndex, jsonStr, restOfStr, parsedChunk, pushedData, newLimiterData, returnedData, parsedChunk, pushedData, newLimiterData, returnedData, returnedData, error_1;
+    return __generator(this, function (_g) {
+        switch (_g.label) {
             case 0:
-                _c.trys.push([0, 5, , 6]);
+                _g.trys.push([0, 5, , 6]);
                 console.time('parseGrpcData');
                 url = requestObject.url, method = requestObject.method, headers = requestObject.headers;
-                _a = dataObject || {}, limiter = _a.limiter, concatData = _a.concatData, objectPrefix = _a.objectPrefix;
+                _a = dataObject || {}, _b = _a.limiter, limiter = _b === void 0 ? 1 : _b, _c = _a.concatData, concatData = _c === void 0 ? false : _c, _d = _a.objectPrefix, objectPrefix = _d === void 0 ? 'result' : _d, _e = _a.showDebug, showDebug = _e === void 0 ? false : _e;
                 allData = [];
                 limiterData = [];
                 hasLimiter = limiter && limiter > 0;
@@ -65,21 +65,24 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                         onError === null || onError === void 0 ? void 0 : onError(e);
                     })];
             case 1:
-                res = _c.sent();
+                res = _g.sent();
                 count = 0;
                 failedCount = 0;
                 reader = (res === null || res === void 0 ? void 0 : res.body) ? res.body.getReader() : undefined;
                 decoder = new TextDecoder('utf8');
+                if (showDebug) {
+                    console.log("objectPrefix: ", objectPrefix);
+                }
                 result = '';
-                startObject = '{"result":';
+                startObject = "{\"" + objectPrefix + "\":";
                 endObjRegex = /}}\n+/g;
-                _c.label = 2;
+                _g.label = 2;
             case 2:
                 if (!(true && reader)) return [3 /*break*/, 4];
                 parsedChunkData = [];
                 return [4 /*yield*/, reader.read()];
             case 3:
-                _b = _c.sent(), value = _b.value, done = _b.done;
+                _f = _g.sent(), value = _f.value, done = _f.done;
                 if (done)
                     return [3 /*break*/, 4];
                 chunk = decoder.decode(value);
@@ -92,7 +95,8 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                     try {
                         parsedChunk = JSON.parse(jsonStr);
                         pushedData = objectPrefix
-                            ? parsedChunk === null || parsedChunk === void 0 ? void 0 : parsedChunk.objectPrefix : parsedChunk;
+                            ? parsedChunk ? parsedChunk[objectPrefix] : undefined
+                            : parsedChunk;
                         allData.push(pushedData);
                         parsedChunkData.push(pushedData);
                         if (hasLimiter) {
@@ -117,6 +121,34 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                         count++;
                     }
                 }
+                else {
+                    // try to parse the result, this case handle one 1 result returned
+                    try {
+                        parsedChunk = JSON.parse(result);
+                        pushedData = objectPrefix
+                            ? parsedChunk ? parsedChunk[objectPrefix] : undefined
+                            : parsedChunk;
+                        allData.push(pushedData);
+                        parsedChunkData.push(pushedData);
+                        if (hasLimiter) {
+                            limiterData.push(pushedData);
+                            if (limiterData.length === limiter) {
+                                newLimiterData = __spreadArrays(limiterData);
+                                limiterData.splice(0, limiter);
+                                returnedData = concatData
+                                    ? allData
+                                    : newLimiterData;
+                                onChunkReceive(returnedData);
+                            }
+                        }
+                        count++;
+                    }
+                    catch (_err) { // keep error in here cause object not completed
+                        // onError(_err);
+                        // console.log('Failed to parse json chunk');
+                        // failedCount++;
+                    }
+                }
                 return [3 /*break*/, 2];
             case 4:
                 if (hasLimiter && limiterData.length > 0) {
@@ -127,14 +159,16 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                     onChunkReceive([]);
                 }
                 if (onFinish) {
-                    console.log("count: ", count);
-                    console.log("failed count: ", failedCount);
+                    if (showDebug) {
+                        console.log("count: ", count);
+                        console.log("failed count: ", failedCount);
+                    }
                     console.timeEnd('parseGrpcData');
                     onFinish(allData);
                 }
                 return [3 /*break*/, 6];
             case 5:
-                error_1 = _c.sent();
+                error_1 = _g.sent();
                 if (onError)
                     onError(error_1);
                 return [3 /*break*/, 6];
