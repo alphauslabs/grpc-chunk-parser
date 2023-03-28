@@ -22,21 +22,38 @@ export const parseGrpcData = async (
     try {
         console.time('parseGrpcData');
         const { url, method, headers } = requestObject;
-        const { limiter = 1, concatData = false, showDebug = false } = dataObject || {};
-        let objectPrefix = dataObject.objectPrefix || 'result';
+        const { limiter = 1, concatData = false, showDebug = false } = dataObject ?? {};
+        let objectPrefix = dataObject?.objectPrefix ?? 'result';
+
         const allData: DynamicObject[] = [];
         const limiterData: DynamicObject[] = [];
         const hasLimiter = limiter && limiter > 0;
 
-        const fetchProps: DynamicObject = {
-            method,
+        const res: any = await fetch(url, {
+            method: method.toUpperCase(),
             headers,
-            body: requestObject.body ? JSON.stringify(requestObject.body) : undefined,
-        };
-
-        const res: any = await fetch(url, fetchProps).catch((e: any) => {
+            body: requestObject.body && JSON.stringify(requestObject.body),
+        }).catch((e: any) => {
             onError?.(e);
         });
+
+        const handleLimiterData = (item: any, parsedChunkData: DynamicObject[], allData: DynamicObject[], limiterData: DynamicObject[], limiter: number, concatData: boolean): void => {
+            const parsedChunk = JSON.parse(item);
+            const pushedData = objectPrefix ? parsedChunk[objectPrefix] : parsedChunk;
+            allData.push(pushedData);
+            parsedChunkData.push(pushedData);
+            if (hasLimiter) {
+                limiterData.push(pushedData);
+                if (limiterData.length === limiter) {
+                    const newLimiterData = [...limiterData];
+                    limiterData.splice(0, limiter);
+                    const returnedData = concatData
+                        ? allData
+                        : newLimiterData;
+                    onChunkReceive?.(returnedData);
+                }
+            }
+        };
 
         let count = 0;
         let failedCount = 0;
@@ -48,92 +65,51 @@ export const parseGrpcData = async (
         }
 
         let result = '';
-        const startObject = `{"${objectPrefix}":`;
-        // streaming data will like: 
-        // 1 - {"result":{...
-        // 2 - ...}}\n
-        // 3 - {"result":{...}}
-        const endObjRegex = /}}\n+/g; 
+        const endObjRegex = /\r?\n+/;
 
         while (true && reader) {
             const parsedChunkData: DynamicObject[] = [];
             const { value, done } = await reader.read();
-          
+
             if (done) break;
             const chunk: string = decoder.decode(value);
             result += chunk;
 
-            const startIndex = result.indexOf(startObject);
-            const endIndex = result.search(endObjRegex);
+            const list = result.split(endObjRegex);
 
-            if (startIndex !== -1 && endIndex !== -1) {
-                const jsonStr = result.substring(startIndex, endIndex + 2);
-                const restOfStr = result.substring(endIndex + 2);
-                try {
-                    const parsedChunk = JSON.parse(jsonStr);
-
-                    const pushedData = objectPrefix
-                        ? parsedChunk ? parsedChunk[objectPrefix] : undefined
-                        : parsedChunk;
-
-                    allData.push(pushedData);
-                    parsedChunkData.push(pushedData);
-                    if (hasLimiter) {
-                        limiterData.push(pushedData);
-                        if (limiterData.length === limiter) {
-                            const newLimiterData = [...limiterData];
-                            limiterData.splice(0, limiter);
-                            const returnedData = concatData
-                                ? allData
-                                : newLimiterData;
-                            onChunkReceive(returnedData);
-                        }
+            if (list.length > 1) {
+                // create for loop for list
+                for (const item of list) {
+                    try {
+                        handleLimiterData(item, parsedChunkData, allData, limiterData, limiter, concatData);
+                        result = '';
+                        count++;
+                    } catch (_err) {
+                        // Failed to parse => add list to result
+                        result += item
                     }
-                } catch (_err) {
-                    // onError(_err);
-                    console.log('Failed to parse json chunk');
-                    failedCount++;
-                } finally {
-                    result = restOfStr;
-                    count++;
                 }
             } else {
-                // try to parse the result, this case handle one 1 result returned
+                // uncompleted list
+                result = list[0]
+                // try to parse this result incase of there is only 1 result at the end of stream
                 try {
-                    const parsedChunk = JSON.parse(result);
-
-                    const pushedData = objectPrefix
-                        ? parsedChunk ? parsedChunk[objectPrefix] : undefined
-                        : parsedChunk;
-                    allData.push(pushedData);
-                    parsedChunkData.push(pushedData);
-                    if (hasLimiter) {
-                        limiterData.push(pushedData);
-                        if (limiterData.length === limiter) {
-                            const newLimiterData = [...limiterData];
-                            limiterData.splice(0, limiter);
-                            const returnedData = concatData
-                                ? allData
-                                : newLimiterData;
-                            onChunkReceive(returnedData);
-                        }
-                    }
+                    handleLimiterData(list[0], parsedChunkData, allData, limiterData, limiter, concatData);
+                    result = '';
                     count++;
-                } catch (_err) { // keep error in here cause object not completed
-                    // onError(_err);
-                    // console.log('Failed to parse json chunk');
-                    // failedCount++;
+                } catch (_err) {
+                    // Nothing to do, this maybe the end of stream data
                 }
+            }
+
+            if (!hasLimiter) {
+                const returnedData = concatData ? allData : parsedChunkData;
+                onChunkReceive?.(returnedData);
             }
         }
 
-        if (hasLimiter && limiterData.length > 0) {
-            const returnedData = concatData ? allData : limiterData;
-            onChunkReceive(returnedData);
-        }
-
         if (allData.length === 0) {
-            onChunkReceive([]);
+            onChunkReceive?.([]);
         }
 
         if (onFinish) {

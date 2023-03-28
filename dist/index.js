@@ -45,118 +45,102 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseGrpcData = void 0;
 exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onFinish, onError) { return __awaiter(void 0, void 0, void 0, function () {
-    var url, method, headers, _a, _b, limiter, _c, concatData, _d, objectPrefix, _e, showDebug, allData, limiterData, hasLimiter, fetchProps, res, count, failedCount, reader, decoder, result, startObject, endObjRegex, parsedChunkData, _f, value, done, chunk, startIndex, endIndex, jsonStr, restOfStr, parsedChunk, pushedData, newLimiterData, returnedData, parsedChunk, pushedData, newLimiterData, returnedData, returnedData, error_1;
+    var url, method, headers, _a, _b, limiter, _c, concatData, _d, showDebug, objectPrefix_1, allData, limiterData, hasLimiter_1, res, handleLimiterData, count, failedCount, reader, decoder, result, endObjRegex, parsedChunkData, _e, value, done, chunk, list, _i, list_1, item, returnedData, error_1;
+    var _f;
     return __generator(this, function (_g) {
         switch (_g.label) {
             case 0:
                 _g.trys.push([0, 5, , 6]);
                 console.time('parseGrpcData');
                 url = requestObject.url, method = requestObject.method, headers = requestObject.headers;
-                _a = dataObject || {}, _b = _a.limiter, limiter = _b === void 0 ? 1 : _b, _c = _a.concatData, concatData = _c === void 0 ? false : _c, _d = _a.objectPrefix, objectPrefix = _d === void 0 ? 'result' : _d, _e = _a.showDebug, showDebug = _e === void 0 ? false : _e;
+                _a = dataObject !== null && dataObject !== void 0 ? dataObject : {}, _b = _a.limiter, limiter = _b === void 0 ? 1 : _b, _c = _a.concatData, concatData = _c === void 0 ? false : _c, _d = _a.showDebug, showDebug = _d === void 0 ? false : _d;
+                objectPrefix_1 = (_f = dataObject === null || dataObject === void 0 ? void 0 : dataObject.objectPrefix) !== null && _f !== void 0 ? _f : 'result';
                 allData = [];
                 limiterData = [];
-                hasLimiter = limiter && limiter > 0;
-                fetchProps = {
-                    method: method,
-                    headers: headers,
-                    body: requestObject.body ? JSON.stringify(requestObject.body) : undefined,
-                };
-                return [4 /*yield*/, fetch(url, fetchProps).catch(function (e) {
+                hasLimiter_1 = limiter && limiter > 0;
+                return [4 /*yield*/, fetch(url, {
+                        method: method.toUpperCase(),
+                        headers: headers,
+                        body: requestObject.body && JSON.stringify(requestObject.body),
+                    }).catch(function (e) {
                         onError === null || onError === void 0 ? void 0 : onError(e);
                     })];
             case 1:
                 res = _g.sent();
+                handleLimiterData = function (item, parsedChunkData, allData, limiterData, limiter, concatData) {
+                    var parsedChunk = JSON.parse(item);
+                    var pushedData = objectPrefix_1 ? parsedChunk[objectPrefix_1] : parsedChunk;
+                    allData.push(pushedData);
+                    parsedChunkData.push(pushedData);
+                    if (hasLimiter_1) {
+                        limiterData.push(pushedData);
+                        if (limiterData.length === limiter) {
+                            var newLimiterData = __spreadArrays(limiterData);
+                            limiterData.splice(0, limiter);
+                            var returnedData = concatData
+                                ? allData
+                                : newLimiterData;
+                            onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive(returnedData);
+                        }
+                    }
+                };
                 count = 0;
                 failedCount = 0;
                 reader = (res === null || res === void 0 ? void 0 : res.body) ? res.body.getReader() : undefined;
                 decoder = new TextDecoder('utf8');
                 if (showDebug) {
-                    console.log("objectPrefix: ", objectPrefix);
+                    console.log("objectPrefix: ", objectPrefix_1);
                 }
                 result = '';
-                startObject = "{\"" + objectPrefix + "\":";
-                endObjRegex = /}}\n+/g;
+                endObjRegex = /\r?\n+/;
                 _g.label = 2;
             case 2:
                 if (!(true && reader)) return [3 /*break*/, 4];
                 parsedChunkData = [];
                 return [4 /*yield*/, reader.read()];
             case 3:
-                _f = _g.sent(), value = _f.value, done = _f.done;
+                _e = _g.sent(), value = _e.value, done = _e.done;
                 if (done)
                     return [3 /*break*/, 4];
                 chunk = decoder.decode(value);
                 result += chunk;
-                startIndex = result.indexOf(startObject);
-                endIndex = result.search(endObjRegex);
-                if (startIndex !== -1 && endIndex !== -1) {
-                    jsonStr = result.substring(startIndex, endIndex + 2);
-                    restOfStr = result.substring(endIndex + 2);
-                    try {
-                        parsedChunk = JSON.parse(jsonStr);
-                        pushedData = objectPrefix
-                            ? parsedChunk ? parsedChunk[objectPrefix] : undefined
-                            : parsedChunk;
-                        allData.push(pushedData);
-                        parsedChunkData.push(pushedData);
-                        if (hasLimiter) {
-                            limiterData.push(pushedData);
-                            if (limiterData.length === limiter) {
-                                newLimiterData = __spreadArrays(limiterData);
-                                limiterData.splice(0, limiter);
-                                returnedData = concatData
-                                    ? allData
-                                    : newLimiterData;
-                                onChunkReceive(returnedData);
-                            }
+                list = result.split(endObjRegex);
+                if (list.length > 1) {
+                    // create for loop for list
+                    for (_i = 0, list_1 = list; _i < list_1.length; _i++) {
+                        item = list_1[_i];
+                        try {
+                            handleLimiterData(item, parsedChunkData, allData, limiterData, limiter, concatData);
+                            result = '';
+                            count++;
                         }
-                    }
-                    catch (_err) {
-                        // onError(_err);
-                        console.log('Failed to parse json chunk');
-                        failedCount++;
-                    }
-                    finally {
-                        result = restOfStr;
-                        count++;
+                        catch (_err) {
+                            // Failed to parse => add list to result
+                            result += item;
+                        }
                     }
                 }
                 else {
-                    // try to parse the result, this case handle one 1 result returned
+                    // uncompleted list
+                    result = list[0];
+                    // try to parse this result incase of there is only 1 result at the end of stream
                     try {
-                        parsedChunk = JSON.parse(result);
-                        pushedData = objectPrefix
-                            ? parsedChunk ? parsedChunk[objectPrefix] : undefined
-                            : parsedChunk;
-                        allData.push(pushedData);
-                        parsedChunkData.push(pushedData);
-                        if (hasLimiter) {
-                            limiterData.push(pushedData);
-                            if (limiterData.length === limiter) {
-                                newLimiterData = __spreadArrays(limiterData);
-                                limiterData.splice(0, limiter);
-                                returnedData = concatData
-                                    ? allData
-                                    : newLimiterData;
-                                onChunkReceive(returnedData);
-                            }
-                        }
+                        handleLimiterData(list[0], parsedChunkData, allData, limiterData, limiter, concatData);
+                        result = '';
                         count++;
                     }
-                    catch (_err) { // keep error in here cause object not completed
-                        // onError(_err);
-                        // console.log('Failed to parse json chunk');
-                        // failedCount++;
+                    catch (_err) {
+                        // Nothing to do, this maybe the end of stream data
                     }
+                }
+                if (!hasLimiter_1) {
+                    returnedData = concatData ? allData : parsedChunkData;
+                    onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive(returnedData);
                 }
                 return [3 /*break*/, 2];
             case 4:
-                if (hasLimiter && limiterData.length > 0) {
-                    returnedData = concatData ? allData : limiterData;
-                    onChunkReceive(returnedData);
-                }
                 if (allData.length === 0) {
-                    onChunkReceive([]);
+                    onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive([]);
                 }
                 if (onFinish) {
                     if (showDebug) {
