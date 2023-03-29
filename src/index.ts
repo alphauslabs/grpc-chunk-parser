@@ -50,6 +50,12 @@ export const parseGrpcData = async (
                     const returnedData = concatData
                         ? allData
                         : newLimiterData;
+                    if (showDebug) {
+                        console.log("newLimiterData length: ", newLimiterData.length);
+                        console.log("limiterData length: ", limiterData.length);
+                        console.log("allData length: ", allData.length);
+                        console.log("returnedData length: ", returnedData.length);
+                    }
                     onChunkReceive?.(returnedData);
                 }
             }
@@ -61,7 +67,9 @@ export const parseGrpcData = async (
         const decoder = new TextDecoder('utf8');
 
         if (showDebug) {
-            console.log("objectPrefix: ", objectPrefix);
+            console.log("=== objectPrefix: ", objectPrefix);
+            console.log("=== limiter: ", limiter);
+            console.log("=== concatData: ", concatData);
         }
 
         let result = '';
@@ -105,6 +113,16 @@ export const parseGrpcData = async (
             if (!hasLimiter) {
                 const returnedData = concatData ? allData : parsedChunkData;
                 onChunkReceive?.(returnedData);
+            }
+        }
+
+        // return all limiterData if still have some pending
+        if (limiterData.length > 0) {
+            const returnedData = concatData ? allData : limiterData;
+            onChunkReceive?.(returnedData);
+            if (showDebug) {
+                console.log("=== end limiterData length: ", limiterData.length);
+                console.log("=== end returnedData length: ", returnedData.length);
             }
         }
 
