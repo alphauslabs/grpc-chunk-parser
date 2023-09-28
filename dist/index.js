@@ -45,7 +45,7 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseGrpcData = void 0;
 exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onFinish, onError) { return __awaiter(void 0, void 0, void 0, function () {
-    var url, method, headers, _a, _b, limiter, _c, concatData, _d, showDebug, objectPrefix_1, allData, limiterData, hasLimiter_1, res, handleLimiterData, count, failedCount, reader, decoder, result, endObjRegex, parsedChunkData, _e, value, done, chunk, list, _i, list_1, item, returnedData, error_1;
+    var url, method, headers, _a, _b, limiter, _c, concatData, _d, showDebug_1, objectPrefix_1, allData, limiterData, hasLimiter_1, res, handleLimiterData, count, failedCount, reader, decoder, result, endObjRegex, parsedChunkData, _e, value, done, chunk, list, _i, list_1, item, returnedData, returnedData, error_1;
     var _f;
     return __generator(this, function (_g) {
         switch (_g.label) {
@@ -53,7 +53,7 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                 _g.trys.push([0, 5, , 6]);
                 console.time('parseGrpcData');
                 url = requestObject.url, method = requestObject.method, headers = requestObject.headers;
-                _a = dataObject !== null && dataObject !== void 0 ? dataObject : {}, _b = _a.limiter, limiter = _b === void 0 ? 1 : _b, _c = _a.concatData, concatData = _c === void 0 ? false : _c, _d = _a.showDebug, showDebug = _d === void 0 ? false : _d;
+                _a = dataObject !== null && dataObject !== void 0 ? dataObject : {}, _b = _a.limiter, limiter = _b === void 0 ? 1 : _b, _c = _a.concatData, concatData = _c === void 0 ? false : _c, _d = _a.showDebug, showDebug_1 = _d === void 0 ? false : _d;
                 objectPrefix_1 = (_f = dataObject === null || dataObject === void 0 ? void 0 : dataObject.objectPrefix) !== null && _f !== void 0 ? _f : 'result';
                 allData = [];
                 limiterData = [];
@@ -63,10 +63,19 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                         headers: headers,
                         body: requestObject.body && JSON.stringify(requestObject.body),
                     }).catch(function (e) {
-                        onError === null || onError === void 0 ? void 0 : onError(e);
+                        if (showDebug_1) {
+                            console.error("Error in fetch: ", e);
+                        }
+                        return onError === null || onError === void 0 ? void 0 : onError(e);
                     })];
             case 1:
                 res = _g.sent();
+                if (res.status != 200) {
+                    return [2 /*return*/, onError === null || onError === void 0 ? void 0 : onError({
+                            status: res.status,
+                            message: res.statusText,
+                        })];
+                }
                 handleLimiterData = function (item, parsedChunkData, allData, limiterData, limiter, concatData) {
                     var parsedChunk = JSON.parse(item);
                     var pushedData = objectPrefix_1 ? parsedChunk[objectPrefix_1] : parsedChunk;
@@ -80,6 +89,12 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                             var returnedData = concatData
                                 ? allData
                                 : newLimiterData;
+                            if (showDebug_1) {
+                                console.log("newLimiterData length: ", newLimiterData.length);
+                                console.log("limiterData length: ", limiterData.length);
+                                console.log("allData length: ", allData.length);
+                                console.log("returnedData length: ", returnedData.length);
+                            }
                             onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive(returnedData);
                         }
                     }
@@ -88,8 +103,10 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                 failedCount = 0;
                 reader = (res === null || res === void 0 ? void 0 : res.body) ? res.body.getReader() : undefined;
                 decoder = new TextDecoder('utf8');
-                if (showDebug) {
-                    console.log("objectPrefix: ", objectPrefix_1);
+                if (showDebug_1) {
+                    console.log("=== objectPrefix: ", objectPrefix_1);
+                    console.log("=== limiter: ", limiter);
+                    console.log("=== concatData: ", concatData);
                 }
                 result = '';
                 endObjRegex = /\r?\n+/;
@@ -139,11 +156,20 @@ exports.parseGrpcData = function (requestObject, dataObject, onChunkReceive, onF
                 }
                 return [3 /*break*/, 2];
             case 4:
+                // return all limiterData if still have some pending
+                if (limiterData.length > 0) {
+                    returnedData = concatData ? allData : limiterData;
+                    onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive(returnedData);
+                    if (showDebug_1) {
+                        console.log("=== end limiterData length: ", limiterData.length);
+                        console.log("=== end returnedData length: ", returnedData.length);
+                    }
+                }
                 if (allData.length === 0) {
                     onChunkReceive === null || onChunkReceive === void 0 ? void 0 : onChunkReceive([]);
                 }
                 if (onFinish) {
-                    if (showDebug) {
+                    if (showDebug_1) {
                         console.log("count: ", count);
                         console.log("failed count: ", failedCount);
                     }

@@ -34,8 +34,18 @@ export const parseGrpcData = async (
             headers,
             body: requestObject.body && JSON.stringify(requestObject.body),
         }).catch((e: any) => {
-            onError?.(e);
+            if (showDebug) { 
+                console.error("Error in fetch: ", e);
+            }
+            return onError?.(e);
         });
+
+        if (res.status != 200) {
+            return onError?.({
+                status: res.status,
+                message: res.statusText,
+            });
+        }
 
         const handleLimiterData = (item: any, parsedChunkData: DynamicObject[], allData: DynamicObject[], limiterData: DynamicObject[], limiter: number, concatData: boolean): void => {
             const parsedChunk = JSON.parse(item);
