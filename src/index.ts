@@ -20,14 +20,19 @@ export const parseGrpcData = async (
     onError?: (e: any) => void
 ) => {
     try {
-        console.time('parseGrpcData');
+        
         const { url, method, headers } = requestObject;
         const { limiter = 1, concatData = false, showDebug = false } = dataObject ?? {};
+
         let objectPrefix = dataObject?.objectPrefix ?? 'result';
 
         const allData: DynamicObject[] = [];
         const limiterData: DynamicObject[] = [];
         const hasLimiter = limiter && limiter > 0;
+
+        if (showDebug) { 
+            console.time('parseGrpcData');
+        }
 
         const res: any = await fetch(url, {
             method: method.toUpperCase(),
@@ -144,8 +149,8 @@ export const parseGrpcData = async (
             if (showDebug) {
                 console.log("count: ", count);
                 console.log("failed count: ", failedCount);
+                console.timeEnd('parseGrpcData');
             }
-            console.timeEnd('parseGrpcData');
             onFinish(allData);
         }
     } catch (error) {

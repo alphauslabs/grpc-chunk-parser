@@ -6,7 +6,7 @@ Typescript package for parsing grpc chunk data
 
 First, add a `.npmrc` file with the following content:
 
-```
+```npmrc
 @alphauslabs:registry=https://npm.pkg.github.com
 ```
 
@@ -17,7 +17,7 @@ Then install:
 
 Import the **parseGrpcData** function in your file via the command
 
-```
+```ts
 import { parseGrpcData } from '@alphauslabs/grpc-chunk-parser';
 ```
 
@@ -42,7 +42,7 @@ parseGrpcData has **5 parameters**:
 
 ## Example
 
-```
+```ts
 import { parseGrpcData } from '@alphauslabs/grpc-chunk-parser';
 
 parseGrpcData(
@@ -57,8 +57,8 @@ parseGrpcData(
         }
     },
     {
-        limiter: 20, // Every 20 items received, the function in
-			        // param 3 `onChunkReceive` will be called.
+        showDebug: true, // default false (optional)
+        limiter: 20, // Every 20 items received, the function in param 3 `onChunkReceive` will be called.
         concatData: false,
         objectPrefix: 'result.aws',
     },
@@ -66,10 +66,10 @@ parseGrpcData(
         console.log('returned data', data);
     },
     (fullData: any) => {
-        console.log('On finish here', fullData)
+        console.log('On finish here', fullData);
     },
     (err: any) => {
-        console.log('Error here, err)
+        console.log('Error here, err');
     }
 );
 ```
